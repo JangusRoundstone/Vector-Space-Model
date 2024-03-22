@@ -1,0 +1,17 @@
+def get_line_content(file_path, ptr):
+    with open(file_path, 'r') as file:
+        file.seek(ptr)  # Move to the position indicated by ptr
+        line_content = file.readline().strip()  # Read the line content
+    return line_content
+
+# Replace 'your_file.txt' with your file name
+file_path = 'postings.txt'
+
+# Replace ptr_value with the actual pointer value you want to use
+ptr_value = 41417 # Example pointer value
+
+line_content = get_line_content(file_path, ptr_value)
+if line_content:
+    print("Line content:", line_content)
+else:
+    print("Pointer is invalid or points to the end of the file.")
