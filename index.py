@@ -12,8 +12,10 @@ import getopt
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 
+
 def usage():
     print("usage: " + sys.argv[0] + " -i directory-of-documents -d dictionary-file -p postings-file")
+
 
 def build_index(in_dir, out_dict, out_postings):
     """
@@ -29,60 +31,64 @@ def build_index(in_dir, out_dict, out_postings):
 
     # Initiate stemmer and vectorizer
     stemmer = PorterStemmer()
-    vectorizer = CountVectorizer()
 
+    # Read each document from the directory
     filenames = sorted(os.listdir(in_dir), key=int)
     for filename in filenames:
-        # print(filename)
         with open(os.path.join(in_dir, filename), 'r') as file:
             words = word_tokenize(file.read())
-            stemmed_words = [stemmer.stem(word.lower()) for word in words] # a list of stemmed words for counting raw document frequency later
+            stemmed_words = [stemmer.stem(word.lower()) for word in
+                             words]  # a list of stemmed words for counting raw document frequency later
 
-            # Compute the length of the document for cosine normalization
-            doc_term_matrix = vectorizer.fit_transform(stemmed_words)
-            doc_term_array = doc_term_matrix.toarray()
-            term_frequencies = np.sum(doc_term_array, axis=0)
-            doc_length = np.linalg.norm(term_frequencies)
-            length[filename] = doc_length
+            log_term_frequencies = {}
+            # check_count = 0
 
-            # Update dictionary and posting list for each term encountered
+            # Count the raw document frequency for each term and update the dictionary (doc_freq)
             terms = set(stemmed_words)
             for term in terms:
                 doc_freq[term] = doc_freq.get(term, 0) + 1
                 raw_tf = stemmed_words.count(term)
+
+                # Convert the raw tf for all documents of each term into normalized log 10 based tf
+                tf = math.log(raw_tf, 10) + 1
+                # Store the log tf for each term in the dictionary (log_term_frequencies{})
+                log_term_frequencies[term] = tf
+
+            # Compute the length of the document for cosine normalization
+            doc_length = np.linalg.norm(list(log_term_frequencies.values()))
+            length[filename] = doc_length
+
+            # Normalize the postings list
+            for term in terms:
+                tf = log_term_frequencies[term]
+                normalised_tf = tf / doc_length
+                # check_count += normalised_tf ** 2;
+
                 if term not in postings_lists:
-                    postings_lists[term] = []    
-                postings_lists[term].append((int(filename), raw_tf)) # store the docID + raw tf in postings list
-    
-    print("Normalizing documents...")
-    # Convert the raw tf for all documents of each term into normalized log 10 based tf
-    for term in doc_freq:
-        normalized_postings_list = []
-        for id_tf_pair in postings_lists[term]:
-            # print("This is the id_tf_pair")
-            # print(id_tf_pair)
-            doc_id = str(id_tf_pair[0])
-            raw_tf = id_tf_pair[1]
-            # print("This is raw tf")
-            # print(raw_tf)
-            tf_weight = math.log(raw_tf,10) + 1
-            # print("This is log base 10 tf")
-            # print(tf_weight)
-            normalized_tf_weight = tf_weight/length[doc_id]
-            # print("This is normalized tf")
-            # print(normalized_tf_weight)
-            id_tf_pair = (doc_id, normalized_tf_weight)
-            normalized_postings_list.append(id_tf_pair)
-        postings_lists[term] = normalized_postings_list
-    
+                    postings_lists[term] = []
+                # Update the postings list with the document ID and normalised tf
+                postings_lists[term].append((int(filename), normalised_tf))  # store the docID + normalised tf in postings list
+
+            # print ('check_count: ', check_count)
+
+
     print("Writing...")
     # Write total document number, final dictionary and posting list to respective files
-    with open(out_dict, 'a') as dict_file, open(out_postings, 'a') as postings_file:
+    with open(out_dict, 'w') as dict_file, open(out_postings, 'w') as postings_file:
+        # files are opened in write mode to overwrite any existing files
         dict_file.write(f"Total_number_of_document: {len(length)}\n")
         for term in sorted(doc_freq):
             pointer = postings_file.tell()
-            postings_file.write(f"{postings_lists[term]}\n")
+            for doc in postings_lists[term]:
+                postings_file.write(f"{doc}")
+                if doc != postings_lists[term][-1]:
+                    postings_file.write(", ")
+            postings_file.write("\n")
+            # postings_file.write(f"{postings_lists[term]}\n")
             dict_file.write(f"{term} {doc_freq[term]} {pointer}\n")
+
+
+
 
 input_directory = output_file_dictionary = output_file_postings = None
 
@@ -93,11 +99,11 @@ except getopt.GetoptError:
     sys.exit(2)
 
 for o, a in opts:
-    if o == '-i': # input directory
+    if o == '-i':  # input directory
         input_directory = a
-    elif o == '-d': # dictionary file
+    elif o == '-d':  # dictionary file
         output_file_dictionary = a
-    elif o == '-p': # postings file
+    elif o == '-p':  # postings file
         output_file_postings = a
     else:
         assert False, "unhandled option"
