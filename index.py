@@ -11,7 +11,6 @@ from nltk.stem import PorterStemmer
 import sys
 import getopt
 import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
 
 
 def usage():

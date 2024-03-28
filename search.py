@@ -7,7 +7,6 @@ from nltk.tokenize import word_tokenize
 from nltk.tokenize import sent_tokenize
 from nltk.stem import PorterStemmer
 import math
-from sklearn.feature_extraction.text import CountVectorizer
 
 def usage():
     print("usage: " + sys.argv[0] + " -d dictionary-file -p postings-file -q file-of-queries -o output-file-of-results")
@@ -20,7 +19,6 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     print('running search on the queries...')
     # Initiate stemmer and vectorizer
     stemmer = PorterStemmer()
-    vectorizer = CountVectorizer()
 
     # Reconstructing the dictionary from the file into memory
     dictionary = {}
