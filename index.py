@@ -5,6 +5,7 @@ import os
 import math
 import nltk
 from nltk.corpus import reuters
+from nltk.tokenize import sent_tokenize
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 import sys
@@ -36,7 +37,10 @@ def build_index(in_dir, out_dict, out_postings):
     filenames = sorted(os.listdir(in_dir), key=int)
     for filename in filenames:
         with open(os.path.join(in_dir, filename), 'r') as file:
-            words = word_tokenize(file.read())
+            words = []
+            sentences = sent_tokenize(file.read())
+            for sentence in sentences:
+                words.extend(word_tokenize(sentence))
             stemmed_words = [stemmer.stem(word.lower()) for word in
                              words]  # a list of stemmed words for counting raw document frequency later
 

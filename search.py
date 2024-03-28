@@ -4,6 +4,7 @@ import nltk
 import sys
 import getopt
 from nltk.tokenize import word_tokenize
+from nltk.tokenize import sent_tokenize
 from nltk.stem import PorterStemmer
 import math
 from sklearn.feature_extraction.text import CountVectorizer
@@ -17,17 +18,9 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     perform searching on the given queries file and output the results to a file
     """
     print('running search on the queries...')
-    # This is an empty method
-    # Pls implement your code in below
-
     # Initiate stemmer and vectorizer
     stemmer = PorterStemmer()
     vectorizer = CountVectorizer()
-
-    # Initate the cosine similarity score dictionary and total number of documents for scoring, and term posting for accessing parts of the posting files
-    scores = {} 
-    term_posting = {} # query term -> posting list
-    total_docu_num = 0
 
     # Reconstructing the dictionary from the file into memory
     dictionary = {}
@@ -45,37 +38,81 @@ def run_search(dict_file, postings_file, queries_file, results_file):
     qf = open(queries_file, 'r')
     queries = qf.readlines()            
     for query in queries:
-        query_tokens = word_tokenize(query)
+        # Initialise the scores board for each query
+        scores_board = {}
+        # Initialise a list to store the tokenized query
+        query_tokens = []
+        # Tokenize the query by sentence first
+        query_sentence = sent_tokenize(query)
+        for sentence in query_sentence:
+            # Further tokenize the sentence by word
+            query_tokens.extend(word_tokenize(sentence))
+        # Stem the query tokens
         stemmed_query = [stemmer.stem(token.lower()) for token in query_tokens]
-        term_posting = get_posting(stemmed_query, dictionary, postings_file) 
-        score_update(term_posting, stemmed_query, total_docu_num, dictionary, scores)
+        # Get the posting lists of the query terms and store them in term_postings
+        term_posting = get_posting(stemmed_query, dictionary, postings_file)
+        # Update the scores of the documents
+        score_update(term_posting, stemmed_query, total_docu_num, dictionary, scores_board)
+        # Sort the scores and write the results to the output file
+        sort_and_write_results(scores_board, results_file)
 
-def score_update(term_posting, stemmed_query, total_docu_num, dictionary, scores): # IMPORTANT: Need to account for when stemmed query word do not appear in dict
+def sort_and_write_results(scores, results_file):
+    # Sort the scores in descending order
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    counter = 0
+    # Write the results to the output file
+    with open(results_file, 'a') as file:
+        for doc, score in sorted_scores:
+            if counter < 10:
+                if counter != 0:
+                    file.write(' ')
+                file.write(str(doc))
+                counter += 1
+            else:
+                break
+        file.write('\n')
+
+def score_update(term_posting, stemmed_query, total_docu_num, dictionary, scores):
     for term in term_posting:
         raw_df, posting_ptr = dictionary[term]
         for doc in term_posting[term]:
+            # Each document is a tuple of docID and normalized tf weight
             docID = doc[0]
             normalized_doc_tf_weight = doc[1]
-            if doc not in scores:
-                scores[doc] = 0
-            scores[doc] += normalized_tf_idf_weight(term, raw_df, stemmed_query, total_docu_num) * normalized_doc_tf_weight # sum the score of each term
+            if docID not in scores:
+                # Initialize the score of the document to be 0 if it is not in the dictionary
+                scores[docID] = 0
+            scores[docID] += get_query_term_weight(term, float(raw_df), stemmed_query, float(total_docu_num)) * normalized_doc_tf_weight
+            # sum the score of each term
 
-def normalized_tf_idf_weight(term, raw_df, stemmed_query, total_docu_num): # IMPORTANT: Need to account for when stemmed query word do not appear in dict
+def get_query_term_weight(term, raw_df, stemmed_query, total_docu_num):
     # Calculate the tf-idf weight of the query term
     raw_tf = stemmed_query.count(term)
     td_weight = 1 + math.log(raw_tf, 10)
     idf_weight = math.log((total_docu_num / raw_df), 10)
 
-    # Normalize the weight
+    return td_weight * idf_weight
 
-
+"""
+Retrieve the posting lists of the tokenized query terms
+"""
 def get_posting(query_terms, dictionary, postings_file):
     term_posting = {}
     for term in query_terms:
+        # If the term is not in the dictionary, skip it
+        if term not in dictionary:
+            continue
         raw_df, posting_ptr = dictionary[term]
         with open(postings_file, 'r') as file:
+            posting = []
             file.seek(posting_ptr)
-            posting = file.readline().strip()
+            line = file.readline().strip()
+            pairs = line.strip().replace('(', '').replace(')', '').split(', ')
+            for i in range(0, len(pairs), 2):
+                doc = int(pairs[i])
+                value = float(pairs[i + 1])
+                posting.append((doc, value))
             term_posting[term] = posting
     return term_posting
 
